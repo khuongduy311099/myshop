@@ -1,6 +1,10 @@
 import cors from 'cors';
-import express, {Application} from 'express';
+import express, {Application, Request, Response} from 'express';
 import ip from 'ip';
+import {Code} from './enum/code.enum';
+import {HttpResponse} from './domain/response';
+import {Status} from './enum/status.enum';
+import productRoutes from './routes/product.routes';
 
 export class App {
     private readonly app: Application;
@@ -29,12 +33,16 @@ export class App {
     }
 
     private routes(): void {
-        this.app.use('/myshop', (req, res) => {});
-        this.app.get('/', (req, res) => {
-            res.status(200).send({message: 'app'});
+        this.app.use('/myshop', productRoutes);
+        this.app.get('/', (req: Request, res: Response) => {
+            res.status(Code.OK).send(
+                new HttpResponse(Code.OK, Status.OK, 'Success'),
+            );
         });
-        this.app.all('*', (req, res) => {
-            res.status(400).send({message: this.ROUTE_NOT_FOUND});
+        this.app.all('*', (req: Request, res: Response) => {
+            res.status(Code.NOT_FOUND).send(
+                new HttpResponse(Code.NOT_FOUND, Status.NOT_FOUND, 'Not found'),
+            );
         });
     }
 }
