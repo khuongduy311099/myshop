@@ -33,7 +33,7 @@ export class App {
     }
 
     private routes(): void {
-        this.app.use('/myshop', productRoutes);
+        this.app.use('/product', productRoutes);
         this.app.get('/', (req: Request, res: Response) => {
             res.status(Code.OK).send(
                 new HttpResponse(Code.OK, Status.OK, 'Success'),

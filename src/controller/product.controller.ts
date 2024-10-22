@@ -1,49 +1,24 @@
 import {Request, Response} from 'express';
-import {FieldPacket, OkPacket, ResultSetHeader, RowDataPacket} from 'mysql';
-import {connection} from '../config/mysql.config';
 import {HttpResponse} from '../domain/response';
 import {Code} from '../enum/code.enum';
 import {Status} from '../enum/status.enum';
-import {Product} from '../inteface/product';
-import {QUERY} from '../queries/product.query';
+import {Product} from '../infrastructure/entity/product';
+import {ProductRepository} from '../infrastructure/repository/product';
+import AppDataSource from '../infrastructure/datasource/datasource';
 
-type ResultSet = [
-    (
-        | OkPacket
-        | ResultSetHeader
-        | RowDataPacket[]
-        | RowDataPacket[][]
-        | OkPacket[]
-    ),
-    FieldPacket[],
-];
+const productRepository = new ProductRepository(AppDataSource);
 
 export const getProducts = async (
     req: Request,
     res: Response,
 ): Promise<void> => {
-    console.info(
-        `[${new Date().toLocaleString()}] Incoming ${req.method}${
-            req.originalUrl
-        } Request from ${req.rawHeaders[1]}`,
-    );
     try {
-        const pool = await connection();
-        const result = await pool.query(QUERY.SELECT_PRODUCTS);
-
-        res.status(Code.OK).send(
-            new HttpResponse(Code.OK, Status.OK, 'Product retrived', result[0]),
-        );
+        const products = await productRepository.findAllProducts();
+        res.status(200).json(products);
     } catch (error) {
         console.log(error);
 
-        res.status(Code.INTERNAL_SERVER_ERROR).send(
-            new HttpResponse(
-                Code.INTERNAL_SERVER_ERROR,
-                Status.INTERNAL_SERVER_ERROR,
-                'An error occurred',
-            ),
-        );
+        res.status(500).json({message: 'An error occurred'});
     }
 };
 
@@ -52,26 +27,26 @@ export const getProduct = async (
     res: Response,
 ): Promise<void> => {
     console.info(
-        `[${new Date().toLocaleString()}] Incoming ${req.method}${
+        `[${new Date().toLocaleString()}] Incoming ${req.method} ${
             req.originalUrl
         } Request from ${req.rawHeaders[1]}`,
     );
-    try {
-        const pool = await connection();
-        const result = await pool.query(QUERY.SELECT_PRODUCT, [
-            req.params.product_id,
-        ]);
 
-        if ((result[0] as Array<ResultSet>).length > 0)
+    try {
+        const product = await productRepository.findProductById(
+            +req.params.product_id,
+        ); // Fetch product by ID
+
+        if (product) {
             res.status(Code.OK).send(
                 new HttpResponse(
                     Code.OK,
                     Status.OK,
-                    'Product retrived',
-                    result[0],
+                    'Product retrieved',
+                    product,
                 ),
             );
-        else {
+        } else {
             res.status(Code.NOT_FOUND).send(
                 new HttpResponse(
                     Code.NOT_FOUND,
@@ -98,28 +73,27 @@ export const createProduct = async (
     res: Response,
 ): Promise<void> => {
     console.info(
-        `[${new Date().toLocaleString()}] Incoming ${req.method}${
+        `[${new Date().toLocaleString()}] Incoming ${req.method} ${
             req.originalUrl
         } Request from ${req.rawHeaders[1]}`,
     );
 
-    let product: Product = {...req.body};
+    const productData: Partial<Product> = req.body; // Assuming req.body has the necessary fields
+
     try {
-        const pool = await connection();
-        const result = await pool.query(
-            QUERY.INSERT_PRODUCT,
-            Object.values(product),
-        );
+        const savedProduct = await productRepository.createProduct(productData); // Create and save the product
 
-        product = {
-            id: (result[0] as ResultSetHeader).insertId,
-            ...req.body,
-        };
-
-        res.status(Code.OK).send(
-            new HttpResponse(Code.OK, Status.OK, 'Product retrived', product),
+        res.status(Code.CREATED).send(
+            new HttpResponse(
+                Code.CREATED,
+                Status.CREATED,
+                'Product created',
+                savedProduct,
+            ),
         );
     } catch (error) {
+        console.error(error);
+
         res.status(Code.INTERNAL_SERVER_ERROR).send(
             new HttpResponse(
                 Code.INTERNAL_SERVER_ERROR,
@@ -135,30 +109,27 @@ export const updateProduct = async (
     res: Response,
 ): Promise<void> => {
     console.info(
-        `[${new Date().toLocaleString()}] Incoming ${req.method}${
+        `[${new Date().toLocaleString()}] Incoming ${req.method} ${
             req.originalUrl
         } Request from ${req.rawHeaders[1]}`,
     );
 
-    let product: Product = {...req.body};
+    const productData: Partial<Product> = req.body;
 
     try {
-        const pool = await connection();
-        const result = await pool.query(QUERY.SELECT_PRODUCT, [
-            req.params.product_id,
-        ]);
+        const updatedProduct = await productRepository.updateProduct(
+            +req.params.product_id,
+            productData,
+        ); // Update product
 
-        if ((result[0] as Array<ResultSet>).length > 0) {
-            await pool.query(QUERY.UPDATE_PRODUCT, [
-                ...Object.values(product),
-                req.params.product_id,
-            ]);
-
+        if (updatedProduct) {
             res.status(Code.OK).send(
-                new HttpResponse(Code.OK, Status.OK, 'Product updated', {
-                    ...product,
-                    id: req.params.product_id,
-                }),
+                new HttpResponse(
+                    Code.OK,
+                    Status.OK,
+                    'Product updated',
+                    updatedProduct,
+                ),
             );
         } else {
             res.status(Code.NOT_FOUND).send(
@@ -187,24 +158,20 @@ export const deleteProduct = async (
     res: Response,
 ): Promise<void> => {
     console.info(
-        `[${new Date().toLocaleString()}] Incoming ${req.method}${
+        `[${new Date().toLocaleString()}] Incoming ${req.method} ${
             req.originalUrl
         } Request from ${req.rawHeaders[1]}`,
     );
 
-    let product: Product = {...req.body};
-
     try {
-        const pool = await connection();
-        const result = await pool.query(QUERY.DELETE_PRODUCT, [
-            req.params.product_id,
-        ]);
+        const deletedProduct = await productRepository.deleteProduct(
+            +req.params.product_id,
+        ); // Delete product
 
-        if ((result[0] as Array<ResultSet>).length > 0) {
+        if (deletedProduct) {
             res.status(Code.OK).send(
                 new HttpResponse(Code.OK, Status.OK, 'Product deleted', {
-                    ...product,
-                    id: req.params.product_id,
+                    id: deletedProduct.product_id,
                 }),
             );
         } else {

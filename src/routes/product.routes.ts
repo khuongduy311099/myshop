@@ -12,7 +12,7 @@ const productRoutes = Router();
 productRoutes.route('/').get(getProducts).post(createProduct);
 
 productRoutes
-    .route('/:productId')
+    .route('/:product_id')
     .get(getProduct)
     .put(updateProduct)
     .delete(deleteProduct);
